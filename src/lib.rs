@@ -7,6 +7,13 @@ pub type Error = &'static str;
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DayKind {
+    Weekday,
+    DayBeforeHoliday,
+    Holiday,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Holiday {
     Nyarsdagen,
     TrettondedagJul,
@@ -54,11 +61,6 @@ impl Holiday {
             Self::AllaHelgonsDag => closest_next(Stockholm.ymd(year, 10, 31), Weekday::Sat),
         }
     }
-
-    /// Used by iterator
-    fn tuple(self, year: i32) -> (Self, Date<Tz>) {
-        (self, self.in_year(year))
-    }
 }
 
 impl fmt::Display for Holiday {
@@ -99,23 +101,23 @@ pub fn easter_day_for_year(year: i32) -> Date<Tz> {
     Stockholm.ymd(year, month as u32, day as u32)
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct Holidays {
-    year: i32,
+#[derive(Clone, Copy)]
+struct Holidays {
     next: Option<Holiday>,
 }
 
-impl Holidays {
-    pub fn year(year: i32) -> impl Iterator<Item = (Holiday, Date<Tz>)> {
-        Self {
-            year,
-            next: Some(Holiday::Nyarsdagen),
-        }
+pub fn holidays() -> impl Iterator<Item = Holiday> + Clone + Copy {
+    Holidays {
+        next: Some(Holiday::Nyarsdagen),
     }
 }
 
+pub fn holidays_in_year(year: i32) -> impl Iterator<Item = (Holiday, Date<Tz>)> + Clone {
+    holidays().map(move |h| (h, h.in_year(year)))
+}
+
 impl iter::Iterator for Holidays {
-    type Item = (Holiday, Date<Tz>);
+    type Item = Holiday;
 
     fn next(&mut self) -> Option<Self::Item> {
         use Holiday::*;
@@ -123,79 +125,81 @@ impl iter::Iterator for Holidays {
         match self.next.take() {
             Some(Nyarsdagen) => {
                 self.next = Some(TrettondedagJul);
-                Some(Nyarsdagen.tuple(self.year))
+                Some(Nyarsdagen)
             }
             Some(TrettondedagJul) => {
                 self.next = Some(Langfredagen);
-                Some(TrettondedagJul.tuple(self.year))
+                Some(TrettondedagJul)
             }
 
             Some(Langfredagen) => {
                 self.next = Some(Paskdagen);
-                Some(Langfredagen.tuple(self.year))
+                Some(Langfredagen)
             }
 
             Some(Paskdagen) => {
                 self.next = Some(AnnandagPask);
-                Some(Paskdagen.tuple(self.year))
+                Some(Paskdagen)
             }
 
             Some(AnnandagPask) => {
                 self.next = Some(ForstaMaj);
-                Some(AnnandagPask.tuple(self.year))
+                Some(AnnandagPask)
             }
 
             Some(ForstaMaj) => {
                 self.next = Some(Holiday::KristiHimmelfardsdag);
-                Some(ForstaMaj.tuple(self.year))
+                Some(ForstaMaj)
             }
 
             Some(KristiHimmelfardsdag) => {
                 self.next = Some(Holiday::Pingstdagen);
-                Some(KristiHimmelfardsdag.tuple(self.year))
+                Some(KristiHimmelfardsdag)
             }
 
             Some(Pingstdagen) => {
                 self.next = Some(Nationaldagen);
-                Some(Pingstdagen.tuple(self.year))
+                Some(Pingstdagen)
             }
 
             Some(Nationaldagen) => {
                 self.next = Some(Midsommarafton);
-                Some(Nationaldagen.tuple(self.year))
+                Some(Nationaldagen)
             }
 
             Some(Midsommarafton) => {
                 self.next = Some(Midsommardagen);
-                Some(Midsommarafton.tuple(self.year))
+                Some(Midsommarafton)
             }
 
             Some(Midsommardagen) => {
                 self.next = Some(AllaHelgonsDag);
-                Some(Midsommardagen.tuple(self.year))
+                Some(Midsommardagen)
             }
 
             Some(AllaHelgonsDag) => {
                 self.next = Some(Julafton);
-                Some(AllaHelgonsDag.tuple(self.year))
+                Some(AllaHelgonsDag)
             }
 
             Some(Julafton) => {
                 self.next = Some(Juldagen);
-                Some(Julafton.tuple(self.year))
+                Some(Julafton)
             }
 
             Some(Juldagen) => {
                 self.next = Some(AnnandagJul);
-                Some(Juldagen.tuple(self.year))
+                Some(Juldagen)
             }
+
             Some(AnnandagJul) => {
                 self.next = Some(Nyarsafton);
-                Some(AnnandagJul.tuple(self.year))
+                Some(AnnandagJul)
             }
+
             Some(Nyarsafton) => {
                 self.next = None;
-                Some(Nyarsafton.tuple(self.year))
+                Some(Nyarsafton)
             }
 
             None => None,
@@ -247,127 +251,5 @@ mod tests {
     fn test_jumping_to_pingstdagen() {
         let easter = easter_day_for_year(2020);
         assert_eq!(Stockholm.ymd(2020, 5, 31), easter + Duration::weeks(7));
-    }
-
-    #[test]
-    fn test_holidays_2020() {
-        assert_eq!(Holiday::Nyarsdagen.in_year(2020), Stockholm.ymd(2020, 1, 1));
-        assert_eq!(
-            Holiday::TrettondedagJul.in_year(2020),
-            Stockholm.ymd(2020, 1, 6)
-        );
-        assert_eq!(
-            Holiday::Langfredagen.in_year(2020),
-            Stockholm.ymd(2020, 4, 10)
-        );
-        assert_eq!(Holiday::Paskdagen.in_year(2020), Stockholm.ymd(2020, 4, 12));
-        assert_eq!(
-            Holiday::AnnandagPask.in_year(2020),
-            Stockholm.ymd(2020, 4, 13)
-        );
-        assert_eq!(Holiday::ForstaMaj.in_year(2020), Stockholm.ymd(2020, 5, 1));
-        assert_eq!(
-            Holiday::KristiHimmelfardsdag.in_year(2020),
-            Stockholm.ymd(2020, 5, 21)
-        );
-        assert_eq!(
-            Holiday::Pingstdagen.in_year(2020),
-            Stockholm.ymd(2020, 5, 31)
-        );
-        assert_eq!(
-            Holiday::Nationaldagen.in_year(2020),
-            Stockholm.ymd(2020, 6, 6)
-        );
-        assert_eq!(
-            Holiday::Midsommarafton.in_year(2020),
-            Stockholm.ymd(2020, 6, 19)
-        );
-        assert_eq!(
-            Holiday::Midsommardagen.in_year(2020),
-            Stockholm.ymd(2020, 6, 20)
-        );
-        assert_eq!(
-            Holiday::AllaHelgonsDag.in_year(2020),
-            Stockholm.ymd(2020, 10, 31)
-        );
-        assert_eq!(Holiday::Julafton.in_year(2020), Stockholm.ymd(2020, 12, 24));
-        assert_eq!(Holiday::Juldagen.in_year(2020), Stockholm.ymd(2020, 12, 25));
-        assert_eq!(
-            Holiday::AnnandagJul.in_year(2020),
-            Stockholm.ymd(2020, 12, 26)
-        );
-        assert_eq!(
-            Holiday::Nyarsafton.in_year(2020),
-            Stockholm.ymd(2020, 12, 31)
-        );
-    }
-
-    #[test]
-    fn test_iterator_2020() {
-        use Holiday::*;
-
-        let mut iter = Holidays::year(2020);
-
-        assert_eq!(
-            (Nyarsdagen, Stockholm.ymd(2020, 1, 1)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (TrettondedagJul, Stockholm.ymd(2020, 1, 6)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (Langfredagen, Stockholm.ymd(2020, 4, 10)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (Paskdagen, Stockholm.ymd(2020, 4, 12)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (AnnandagPask, Stockholm.ymd(2020, 4, 13)),
-            iter.next().unwrap()
-        );
-        assert_eq!((ForstaMaj, Stockholm.ymd(2020, 5, 1)), iter.next().unwrap());
-        assert_eq!(
-            (KristiHimmelfardsdag, Stockholm.ymd(2020, 5, 21)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (Pingstdagen, Stockholm.ymd(2020, 5, 31)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (Nationaldagen, Stockholm.ymd(2020, 6, 6)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (Midsommarafton, Stockholm.ymd(2020, 6, 19)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (Midsommardagen, Stockholm.ymd(2020, 6, 20)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (AllaHelgonsDag, Stockholm.ymd(2020, 10, 31)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (Julafton, Stockholm.ymd(2020, 12, 24)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (Juldagen, Stockholm.ymd(2020, 12, 25)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (AnnandagJul, Stockholm.ymd(2020, 12, 26)),
-            iter.next().unwrap()
-        );
-        assert_eq!(
-            (Nyarsafton, Stockholm.ymd(2020, 12, 31)),
-            iter.next().unwrap()
-        );
     }
 }
