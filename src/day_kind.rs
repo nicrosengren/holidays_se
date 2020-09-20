@@ -29,9 +29,7 @@ where
 
         if self_ord == next_holiday_ord {
             DayKind::Holiday
-        } else if self_ord == next_holiday_ord - 1 {
-            DayKind::DayBeforeHoliday
-        } else if weekday == Weekday::Sat {
+        } else if self_ord == next_holiday_ord - 1 || weekday == Weekday::Sat {
             DayKind::DayBeforeHoliday
         } else {
             DayKind::Weekday

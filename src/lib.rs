@@ -101,7 +101,7 @@ where
 {
     let day_ordinal = date.ordinal();
     holidays_in_year(date.year())
-        .find(|(_, d)| !(d.ordinal() < day_ordinal))
+        .find(|(_, d)| day_ordinal <= d.ordinal())
         // We're only considering Dates, not time here. So it's impossible to express a day
         // later than 31st december - and since 31st dec is New years eve, it is always last.
         // This expect is here to catch any faulty reasoning.
