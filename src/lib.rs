@@ -1,17 +1,10 @@
+mod day_kind;
+
 use chrono::{Date, Datelike, Duration, TimeZone, Weekday};
 use chrono_tz::{Europe::Stockholm, Tz};
 use std::{fmt, iter};
 
-pub type Error = &'static str;
-
-pub type Result<T> = std::result::Result<T, Error>;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum DayKind {
-    Weekday,
-    DayBeforeHoliday,
-    Holiday,
-}
+pub use day_kind::{slice_on_day_kind, DayKind, DayKindSlice};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Holiday {
@@ -44,6 +37,14 @@ impl Holiday {
             Self::Juldagen => Stockholm.ymd(year, 12, 25),
             Self::AnnandagJul => Stockholm.ymd(year, 12, 26),
             Self::Nyarsafton => Stockholm.ymd(year, 12, 31),
+
+            // Weekday related stuff.
+            Self::Midsommarafton => closest_next(Stockholm.ymd(year, 6, 19), Weekday::Fri),
+            Self::Midsommardagen => closest_next(Stockholm.ymd(year, 6, 20), Weekday::Sat),
+
+            // Saturday between 31 oct - 6 nov.
+            Self::AllaHelgonsDag => closest_next(Stockholm.ymd(year, 10, 31), Weekday::Sat),
+
             // Easter related stuff.....
             Self::Langfredagen => easter_day_for_year(year) - Duration::days(2),
             Self::Paskdagen => easter_day_for_year(year),
@@ -52,13 +53,6 @@ impl Holiday {
                 easter_day_for_year(year) + Duration::weeks(5) + Duration::days(4)
             }
             Self::Pingstdagen => easter_day_for_year(year) + Duration::weeks(7),
-
-            // Weekday related stuff.
-            Self::Midsommarafton => closest_next(Stockholm.ymd(year, 6, 19), Weekday::Fri),
-            Self::Midsommardagen => closest_next(Stockholm.ymd(year, 6, 20), Weekday::Sat),
-
-            // Saturday between 31 oct - 6 nov.
-            Self::AllaHelgonsDag => closest_next(Stockholm.ymd(year, 10, 31), Weekday::Sat),
         }
     }
 }
@@ -99,6 +93,19 @@ pub fn easter_day_for_year(year: i32) -> Date<Tz> {
     let day = e + 28 - (31 * (month / 4));
 
     Stockholm.ymd(year, month as u32, day as u32)
+}
+
+pub fn next_upcoming_holiday<D>(date: &D) -> (Holiday, Date<Tz>)
+where
+    D: Datelike,
+{
+    let day_ordinal = date.ordinal();
+    holidays_in_year(date.year())
+        .find(|(_, d)| !(d.ordinal() < day_ordinal))
+        // We're only considering Dates, not time here. So it's impossible to express a day
+        // later than 31st december - and since 31st dec is New years eve, it is always last.
+        // This expect is here to catch any faulty reasoning.
+        .expect("Next upcoming holiday was somehow not found. This is unexpected!")
 }
 
 #[derive(Clone, Copy)]
@@ -207,9 +214,8 @@ impl iter::Iterator for Holidays {
     }
 }
 
-// returns the number of days needed to jump forward in order to reach a given
-// weekday.
-pub fn closest_next(d: Date<Tz>, target: chrono::Weekday) -> Date<Tz> {
+/// Jumps to the closest next coming day of target weekday
+fn closest_next(d: Date<Tz>, target: chrono::Weekday) -> Date<Tz> {
     let days_left_in_week = 7 - d.weekday().num_days_from_monday();
     let days_to_jump = (target.num_days_from_monday() + days_left_in_week) % 7;
     d + Duration::days(days_to_jump.into())
@@ -251,5 +257,28 @@ mod tests {
     fn test_jumping_to_pingstdagen() {
         let easter = easter_day_for_year(2020);
         assert_eq!(Stockholm.ymd(2020, 5, 31), easter + Duration::weeks(7));
+    }
+
+    #[test]
+    fn test_next_upcoming_holiday() {
+        assert_eq!(
+            (Holiday::Nationaldagen, Stockholm.ymd(2020, 6, 6)),
+            super::next_upcoming_holiday(&Stockholm.ymd(2020, 6, 5))
+        );
+
+        assert_eq!(
+            (Holiday::Langfredagen, Stockholm.ymd(2020, 4, 10)),
+            super::next_upcoming_holiday(&Stockholm.ymd(2020, 3, 29))
+        );
+
+        assert_eq!(
+            (Holiday::Nyarsafton, Stockholm.ymd(2020, 12, 31)),
+            super::next_upcoming_holiday(&Stockholm.ymd(2020, 12, 31))
+        );
+
+        assert_eq!(
+            (Holiday::Nyarsdagen, Stockholm.ymd(2020, 1, 1)),
+            super::next_upcoming_holiday(&Stockholm.ymd(2020, 1, 1))
+        );
     }
 }
