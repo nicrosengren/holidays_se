@@ -52,7 +52,7 @@ impl iter::Iterator for SliceIterator {
             return None;
         }
 
-        let start_kind = dbg!(self.start.day_kind());
+        let start_kind = self.start.day_kind();
         let mut step = self.start;
 
         loop {
