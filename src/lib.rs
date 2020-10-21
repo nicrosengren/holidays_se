@@ -4,7 +4,7 @@ use chrono::{Date, Datelike, Duration, TimeZone, Weekday};
 use chrono_tz::{Europe::Stockholm, Tz};
 use std::{fmt, iter};
 
-pub use day_kind::{slice_on_day_kind, DayKind, DayKindSlice};
+pub use day_kind::{day_kind, slice_on_day_kind, DayKind, DayKindSlice};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Holiday {

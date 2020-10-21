@@ -9,7 +9,7 @@ pub enum DayKind {
     Holiday,
 }
 
-trait HasDayKind {
+pub trait HasDayKind {
     fn day_kind(&self) -> DayKind;
 }
 
@@ -40,8 +40,8 @@ where
 #[derive(Clone)]
 struct SliceIterator {
     // Stepped forward.
-    start: chrono::NaiveDateTime,
-    end: chrono::NaiveDateTime,
+    start: chrono::DateTime<Tz>,
+    end: chrono::DateTime<Tz>,
 }
 
 impl iter::Iterator for SliceIterator {
@@ -87,14 +87,21 @@ impl iter::Iterator for SliceIterator {
 /// Returns an iterator of DayKindSlices.
 pub fn slice_on_day_kind(range: Range<DateTime<Tz>>) -> impl Iterator<Item = DayKindSlice> {
     SliceIterator {
-        start: range.start.naive_local(),
-        end: range.end.naive_local(),
+        start: range.start,
+        end: range.end,
     }
+}
+
+pub fn day_kind<D>(d: &D) -> DayKind
+where
+    D: Datelike,
+{
+    d.day_kind()
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DayKindSlice {
-    pub range: Range<chrono::NaiveDateTime>,
+    pub range: Range<chrono::DateTime<Tz>>,
     pub kind: DayKind,
 }
 
@@ -113,7 +120,7 @@ mod tests {
 
         assert_eq!(
             Some(DayKindSlice {
-                range: start.naive_local()..end.naive_local(),
+                range: start..end,
                 kind: DayKind::Weekday
             }),
             iter.next(),
@@ -135,8 +142,7 @@ mod tests {
 
         assert_eq!(
             Some(DayKindSlice {
-                range: start.naive_local()
-                    ..Stockholm.ymd(2020, 9, 19).and_hms(0, 0, 0).naive_local(),
+                range: start..Stockholm.ymd(2020, 9, 19).and_hms(0, 0, 0),
                 kind: DayKind::Weekday,
             }),
             iter.next(),
@@ -145,8 +151,8 @@ mod tests {
 
         assert_eq!(
             Some(DayKindSlice {
-                range: Stockholm.ymd(2020, 9, 19).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 9, 20).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 9, 19).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 9, 20).and_hms(0, 0, 0),
                 kind: DayKind::DayBeforeHoliday,
             }),
             iter.next(),
@@ -155,8 +161,8 @@ mod tests {
 
         assert_eq!(
             Some(DayKindSlice {
-                range: Stockholm.ymd(2020, 9, 20).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 9, 21).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 9, 20).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 9, 21).and_hms(0, 0, 0),
                 kind: DayKind::Holiday,
             }),
             iter.next(),
@@ -165,8 +171,8 @@ mod tests {
 
         assert_eq!(
             Some(DayKindSlice {
-                range: Stockholm.ymd(2020, 9, 21).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 9, 21).and_hms(13, 15, 0).naive_local(),
+                range: Stockholm.ymd(2020, 9, 21).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 9, 21).and_hms(13, 15, 0),
                 kind: DayKind::Weekday,
             }),
             iter.next(),
@@ -189,8 +195,7 @@ mod tests {
         // Wednesday
         assert_eq!(
             DayKindSlice {
-                range: start.naive_local()
-                    ..Stockholm.ymd(2020, 4, 9).and_hms(0, 0, 0).naive_local(),
+                range: start..Stockholm.ymd(2020, 4, 9).and_hms(0, 0, 0),
                 kind: DayKind::Weekday
             },
             iter.next().unwrap()
@@ -199,8 +204,8 @@ mod tests {
         // Thursday before Good Friday(Skärtorsdagen in swedish)
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2020, 4, 9).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 4, 10).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 4, 9).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 4, 10).and_hms(0, 0, 0),
                 kind: DayKind::DayBeforeHoliday,
             },
             iter.next().unwrap()
@@ -209,8 +214,8 @@ mod tests {
         // Good friday
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2020, 4, 10).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 4, 11).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 4, 10).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 4, 11).and_hms(0, 0, 0),
                 kind: DayKind::Holiday,
             },
             iter.next().unwrap()
@@ -219,8 +224,8 @@ mod tests {
         // Saturday between good friday and easter day.
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2020, 4, 11).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 4, 12).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 4, 11).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 4, 12).and_hms(0, 0, 0),
                 kind: DayKind::DayBeforeHoliday,
             },
             iter.next().unwrap()
@@ -229,8 +234,8 @@ mod tests {
         // Easter day and `Annandag påsk`
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2020, 4, 12).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 4, 14).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 4, 12).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 4, 14).and_hms(0, 0, 0),
                 kind: DayKind::Holiday,
             },
             iter.next().unwrap()
@@ -239,8 +244,8 @@ mod tests {
         // The lonely, utterly unspecial wednesday ending the range.
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2020, 4, 14).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 4, 15).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 4, 14).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 4, 15).and_hms(0, 0, 0),
                 kind: DayKind::Weekday,
             },
             iter.next().unwrap()
@@ -262,8 +267,8 @@ mod tests {
         // The 2 normal weekdays before the 23rd
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2020, 12, 21).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 12, 23).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 12, 21).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 12, 23).and_hms(0, 0, 0),
                 kind: DayKind::Weekday,
             },
             iter.next().unwrap()
@@ -272,8 +277,8 @@ mod tests {
         // The 23rd, day before christmas
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2020, 12, 23).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 12, 24).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 12, 23).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 12, 24).and_hms(0, 0, 0),
                 kind: DayKind::DayBeforeHoliday,
             },
             iter.next().unwrap()
@@ -283,8 +288,8 @@ mod tests {
         // since 25th and 26th are holidays, and all sundays are holidays.
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2020, 12, 24).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 12, 28).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 12, 24).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 12, 28).and_hms(0, 0, 0),
                 kind: DayKind::Holiday,
             },
             iter.next().unwrap()
@@ -293,8 +298,8 @@ mod tests {
         // The monday after christmas weekend.
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2020, 12, 28).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 12, 29).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 12, 28).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 12, 29).and_hms(0, 0, 0),
                 kind: DayKind::Weekday,
             },
             iter.next().unwrap()
@@ -312,8 +317,8 @@ mod tests {
         // The tuesday, 2 days before new years.
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2020, 12, 29).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 12, 30).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 12, 29).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 12, 30).and_hms(0, 0, 0),
                 kind: DayKind::Weekday,
             },
             iter.next().unwrap()
@@ -322,8 +327,8 @@ mod tests {
         // The wednesday before new years eve.
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2020, 12, 30).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2020, 12, 31).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 12, 30).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2020, 12, 31).and_hms(0, 0, 0),
                 kind: DayKind::DayBeforeHoliday,
             },
             iter.next().unwrap()
@@ -332,8 +337,8 @@ mod tests {
         // New years eve and new years day.
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2020, 12, 31).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2021, 1, 2).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2020, 12, 31).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2021, 1, 2).and_hms(0, 0, 0),
                 kind: DayKind::Holiday,
             },
             iter.next().unwrap()
@@ -342,8 +347,8 @@ mod tests {
         // The Saturday after new years.
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2021, 1, 2).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2021, 1, 3).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2021, 1, 2).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2021, 1, 3).and_hms(0, 0, 0),
                 kind: DayKind::DayBeforeHoliday,
             },
             iter.next().unwrap()
@@ -352,8 +357,8 @@ mod tests {
         // The Sunday after new years.
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2021, 1, 3).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2021, 1, 4).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2021, 1, 3).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2021, 1, 4).and_hms(0, 0, 0),
                 kind: DayKind::Holiday,
             },
             iter.next().unwrap()
@@ -362,8 +367,8 @@ mod tests {
         // Monday, the 4th
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2021, 1, 4).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2021, 1, 5).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2021, 1, 4).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2021, 1, 5).and_hms(0, 0, 0),
                 kind: DayKind::Weekday,
             },
             iter.next().unwrap()
@@ -372,8 +377,8 @@ mod tests {
         // Tuesday, the 5th. Day before Trettondagsafton
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2021, 1, 5).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2021, 1, 6).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2021, 1, 5).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2021, 1, 6).and_hms(0, 0, 0),
                 kind: DayKind::DayBeforeHoliday,
             },
             iter.next().unwrap()
@@ -382,8 +387,8 @@ mod tests {
         // Wednesday, the 6th. Trettondagsafton.
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2021, 1, 6).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2021, 1, 7).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2021, 1, 6).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2021, 1, 7).and_hms(0, 0, 0),
                 kind: DayKind::Holiday,
             },
             iter.next().unwrap()
@@ -392,8 +397,8 @@ mod tests {
         // Thursday, the 7th
         assert_eq!(
             DayKindSlice {
-                range: Stockholm.ymd(2021, 1, 7).and_hms(0, 0, 0).naive_local()
-                    ..Stockholm.ymd(2021, 1, 8).and_hms(0, 0, 0).naive_local(),
+                range: Stockholm.ymd(2021, 1, 7).and_hms(0, 0, 0)
+                    ..Stockholm.ymd(2021, 1, 8).and_hms(0, 0, 0),
                 kind: DayKind::Weekday,
             },
             iter.next().unwrap()
