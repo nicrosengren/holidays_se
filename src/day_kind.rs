@@ -9,6 +9,17 @@ pub enum DayKind {
     Holiday,
 }
 
+impl DayKind {
+    /// Returns the next occurence of self.
+    /// If dt occurs on self, dt is returned
+    pub fn next_start(&self, dt: &DateTime<Tz>) -> DateTime<Tz> {
+        SliceIterator::from_dt(*dt)
+            .find(|slice| slice.kind == *self)
+            .map(|slice| slice.range.start)
+            .unwrap()
+    }
+}
+
 pub trait HasDayKind {
     fn day_kind(&self) -> DayKind;
 }
@@ -41,14 +52,20 @@ where
 struct SliceIterator {
     // Stepped forward.
     start: chrono::DateTime<Tz>,
-    end: chrono::DateTime<Tz>,
+    end: Option<chrono::DateTime<Tz>>,
+}
+
+impl SliceIterator {
+    pub fn from_dt(start: chrono::DateTime<Tz>) -> Self {
+        Self { start, end: None }
+    }
 }
 
 impl iter::Iterator for SliceIterator {
     type Item = DayKindSlice;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.end <= self.start {
+        if self.end.map(|end| end <= self.start).unwrap_or(false) {
             return None;
         }
 
@@ -59,15 +76,17 @@ impl iter::Iterator for SliceIterator {
             let next_day = (step.date() + Duration::days(1)).and_hms(0, 0, 0);
 
             // We reached the end of given range.
-            if self.end < next_day {
-                let res = DayKindSlice {
-                    range: (self.start..self.end),
-                    kind: start_kind,
-                };
+            if let Some(end) = self.end {
+                if end < next_day {
+                    let res = DayKindSlice {
+                        range: (self.start..end),
+                        kind: start_kind,
+                    };
 
-                // move start forward to mark end.
-                self.start = self.end;
-                return Some(res);
+                    // move start forward to mark end.
+                    self.start = end;
+                    return Some(res);
+                }
             }
 
             if next_day.day_kind() != start_kind {
@@ -88,7 +107,7 @@ impl iter::Iterator for SliceIterator {
 pub fn slice_on_day_kind(range: Range<DateTime<Tz>>) -> impl Iterator<Item = DayKindSlice> {
     SliceIterator {
         start: range.start,
-        end: range.end,
+        end: Some(range.end),
     }
 }
 
@@ -405,5 +424,70 @@ mod tests {
         );
 
         assert!(iter.next().is_none(), "No more time exists in slice");
+    }
+
+    #[test]
+    fn test_next_start() {
+        use super::HasDayKind;
+        {
+            let dt = Stockholm.ymd(2020, 10, 21).and_hms(13, 37, 0);
+            assert_eq!(
+                dt.day_kind().next_start(&dt),
+                dt,
+                "Next start should return self if on same day"
+            );
+        }
+
+        {
+            let dt = Stockholm.ymd(2020, 10, 21).and_hms(13, 37, 0);
+            assert_eq!(
+                DayKind::DayBeforeHoliday.next_start(&dt),
+                Stockholm.ymd(2020, 10, 24).and_hms(0, 0, 0),
+                "Closest DayBeforeHoliday should be Saturday"
+            );
+        }
+        {
+            let dt = Stockholm.ymd(2020, 10, 21).and_hms(13, 37, 0);
+            assert_eq!(
+                DayKind::Holiday.next_start(&dt),
+                Stockholm.ymd(2020, 10, 25).and_hms(0, 0, 0),
+                "Closest Holiday should be Sunday"
+            );
+        }
+
+        {
+            let dt = Stockholm.ymd(2020, 10, 24).and_hms(13, 37, 0);
+            assert_eq!(
+                DayKind::Weekday.next_start(&dt),
+                Stockholm.ymd(2020, 10, 26).and_hms(0, 0, 0),
+                "Closest Weekday from Saturday should be Monday"
+            );
+        }
+        {
+            let dt = Stockholm.ymd(2020, 10, 25).and_hms(13, 37, 0);
+            assert_eq!(
+                DayKind::Weekday.next_start(&dt),
+                Stockholm.ymd(2020, 10, 26).and_hms(0, 0, 0),
+                "Closest Weekday from Sunday should be monday"
+            );
+        }
+
+        {
+            let dt = Stockholm.ymd(2020, 12, 24).and_hms(13, 37, 0);
+            assert_eq!(
+                DayKind::Weekday.next_start(&dt),
+                Stockholm.ymd(2020, 12, 28).and_hms(0, 0, 0),
+                "Closest Weekday from christmas eve should be monday"
+            );
+        }
+
+        {
+            let dt = Stockholm.ymd(2020, 12, 25).and_hms(13, 37, 0);
+            assert_eq!(
+                DayKind::DayBeforeHoliday.next_start(&dt),
+                Stockholm.ymd(2020, 12, 30).and_hms(0, 0, 0),
+                "Closest DayBeforeHoliday from christmas day should be the 30th"
+            );
+        }
     }
 }

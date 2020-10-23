@@ -1,6 +1,6 @@
 [package]
 name = "holidays_se"
-version = "0.3.0"
+version = "0.3.1"
 license = "MIT"
 authors = ["Niclas Rosengren <niclas.rosengren@gmail.com>"]
 description = "Swedish holidays"
