@@ -2,11 +2,14 @@ mod day_kind;
 
 use chrono::{Date, Datelike, Duration, TimeZone, Weekday};
 use chrono_tz::{Europe::Stockholm, Tz};
-use std::{fmt, iter};
+use std::{fmt, iter, str};
+
+#[cfg(feature = "serde")]
+mod serde;
 
 pub use day_kind::{day_kind, slice_on_day_kind, DayKind, DayKindSlice};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Holiday {
     Nyarsdagen,
     TrettondedagJul,
@@ -67,7 +70,7 @@ impl fmt::Display for Holiday {
             Paskdagen => f.write_str("Påskdagen"),
             AnnandagPask => f.write_str("Annandag påsk"),
             ForstaMaj => f.write_str("Första maj"),
-            KristiHimmelfardsdag => f.write_str(""),
+            KristiHimmelfardsdag => f.write_str("Kristi himmelsfärdsdag"),
             Pingstdagen => f.write_str("Pingstdagen"),
             Nationaldagen => f.write_str("Nationaldagen"),
             Midsommarafton => f.write_str("Midsommarafton"),
@@ -77,6 +80,40 @@ impl fmt::Display for Holiday {
             Juldagen => f.write_str("Juldagen"),
             AnnandagJul => f.write_str("Annandag jul"),
             Nyarsafton => f.write_str("Nyårsafton"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, thiserror::Error)]
+#[error("Invalid Holiday")]
+pub struct FromStrError;
+
+impl str::FromStr for Holiday {
+    type Err = FromStrError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        use Holiday::*;
+
+        // We can use ignore ascii case since no big chars are utf8
+        match s.trim() {
+            s if s.eq_ignore_ascii_case("Nyårsdagen") => Ok(Nyarsdagen),
+            s if s.eq_ignore_ascii_case("Trettondedag jul") => Ok(TrettondedagJul),
+            s if s.eq_ignore_ascii_case("Långfredagen") => Ok(Langfredagen),
+            s if s.eq_ignore_ascii_case("Påskdagen") => Ok(Paskdagen),
+            s if s.eq_ignore_ascii_case("Annandag påsk") => Ok(AnnandagPask),
+            s if s.eq_ignore_ascii_case("Första maj") => Ok(ForstaMaj),
+            s if s.eq_ignore_ascii_case("Kristi himmelsfärdsdag") => Ok(KristiHimmelfardsdag),
+            s if s.eq_ignore_ascii_case("Pingstdagen") => Ok(Pingstdagen),
+            s if s.eq_ignore_ascii_case("Nationaldagen") => Ok(Nationaldagen),
+            s if s.eq_ignore_ascii_case("Midsommarafton") => Ok(Midsommarafton),
+            s if s.eq_ignore_ascii_case("Midsommardagen") => Ok(Midsommardagen),
+            s if s.eq_ignore_ascii_case("Alla helgons dag") => Ok(AllaHelgonsDag),
+            s if s.eq_ignore_ascii_case("Julafton") => Ok(Julafton),
+            s if s.eq_ignore_ascii_case("Juldagen") => Ok(Juldagen),
+            s if s.eq_ignore_ascii_case("Annandag jul") => Ok(AnnandagJul),
+            s if s.eq_ignore_ascii_case("Nyårsafton") => Ok(Nyarsafton),
+
+            _ => Err(FromStrError),
         }
     }
 }
@@ -108,15 +145,18 @@ where
         .expect("Next upcoming holiday was somehow not found. This is unexpected!")
 }
 
+// Option to mark that we've yielded the last.
 #[derive(Clone, Copy)]
-struct Holidays {
-    next: Option<Holiday>,
+struct Holidays(Option<Holiday>);
+
+impl Default for Holidays {
+    fn default() -> Self {
+        Self(Some(Holiday::Nyarsdagen))
+    }
 }
 
 pub fn holidays() -> impl Iterator<Item = Holiday> + Clone + Copy {
-    Holidays {
-        next: Some(Holiday::Nyarsdagen),
-    }
+    Holidays::default()
 }
 
 pub fn holidays_in_year(year: i32) -> impl Iterator<Item = (Holiday, Date<Tz>)> + Clone {
@@ -129,83 +169,83 @@ impl iter::Iterator for Holidays {
     fn next(&mut self) -> Option<Self::Item> {
         use Holiday::*;
 
-        match self.next.take() {
+        match self.0 {
             Some(Nyarsdagen) => {
-                self.next = Some(TrettondedagJul);
+                self.0 = Some(TrettondedagJul);
                 Some(Nyarsdagen)
             }
             Some(TrettondedagJul) => {
-                self.next = Some(Langfredagen);
+                self.0 = Some(Langfredagen);
                 Some(TrettondedagJul)
             }
 
             Some(Langfredagen) => {
-                self.next = Some(Paskdagen);
+                self.0 = Some(Paskdagen);
                 Some(Langfredagen)
             }
 
             Some(Paskdagen) => {
-                self.next = Some(AnnandagPask);
+                self.0 = Some(AnnandagPask);
                 Some(Paskdagen)
             }
 
             Some(AnnandagPask) => {
-                self.next = Some(ForstaMaj);
+                self.0 = Some(ForstaMaj);
                 Some(AnnandagPask)
             }
 
             Some(ForstaMaj) => {
-                self.next = Some(Holiday::KristiHimmelfardsdag);
+                self.0 = Some(Holiday::KristiHimmelfardsdag);
                 Some(ForstaMaj)
             }
 
             Some(KristiHimmelfardsdag) => {
-                self.next = Some(Holiday::Pingstdagen);
+                self.0 = Some(Holiday::Pingstdagen);
                 Some(KristiHimmelfardsdag)
             }
 
             Some(Pingstdagen) => {
-                self.next = Some(Nationaldagen);
+                self.0 = Some(Nationaldagen);
                 Some(Pingstdagen)
             }
 
             Some(Nationaldagen) => {
-                self.next = Some(Midsommarafton);
+                self.0 = Some(Midsommarafton);
                 Some(Nationaldagen)
             }
 
             Some(Midsommarafton) => {
-                self.next = Some(Midsommardagen);
+                self.0 = Some(Midsommardagen);
                 Some(Midsommarafton)
             }
 
             Some(Midsommardagen) => {
-                self.next = Some(AllaHelgonsDag);
+                self.0 = Some(AllaHelgonsDag);
                 Some(Midsommardagen)
             }
 
             Some(AllaHelgonsDag) => {
-                self.next = Some(Julafton);
+                self.0 = Some(Julafton);
                 Some(AllaHelgonsDag)
             }
 
             Some(Julafton) => {
-                self.next = Some(Juldagen);
+                self.0 = Some(Juldagen);
                 Some(Julafton)
             }
 
             Some(Juldagen) => {
-                self.next = Some(AnnandagJul);
+                self.0 = Some(AnnandagJul);
                 Some(Juldagen)
             }
 
             Some(AnnandagJul) => {
-                self.next = Some(Nyarsafton);
+                self.0 = Some(Nyarsafton);
                 Some(AnnandagJul)
             }
 
             Some(Nyarsafton) => {
-                self.next = None;
+                self.0 = None;
                 Some(Nyarsafton)
             }
 
